@@ -1,4 +1,3 @@
-# Make a simple PID controller
 class PID:
     def __init__(self, Kp, Ki, Kd, setpoint=0):
         self.Kp = Kp
@@ -32,3 +31,31 @@ class PID:
         self.Kp = Kp
         self.Ki = Ki
         self.Kd = Kd
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    import numpy as np
+    pid = PID(Kp=5.0, Ki=0.3, Kd=0.05, setpoint=100)
+    measurement = 0
+    dt = 0.1
+    outputs = [0]
+    measurements = [measurement]
+    clamp = 100.0
+    for i in range(100):
+        output = pid.update(measurement, dt)
+        measurement += min(output, clamp) * dt + 5.0 * (np.random.random() - 0.5) - 2 # some noise and drift
+        outputs.append(output)
+        measurements.append(measurement)
+    plt.figure()
+    plt.plot(measurements, label='Measurement')
+    plt.axhline(pid.setpoint, color='r', linestyle='--', label='Setpoint')
+    plt.legend()
+    plt.grid()
+    plt.ylim(0, pid.setpoint + 40)
+
+    plt.figure()
+    plt.plot(outputs, label='PID Output')
+    plt.axhline(clamp, color='r', linestyle='--', label='Clamp')
+    plt.legend()
+    plt.grid()
+    plt.show()

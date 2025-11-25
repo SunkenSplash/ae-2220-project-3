@@ -9,7 +9,6 @@ import numpy as np
 import enum
 
 from PID import PID
-from Trajectory import Trajectory
 
 # Write an enum for thruster indices for better readability
 class Thruster(enum.IntEnum):
@@ -52,10 +51,11 @@ class Cosmobee:
         vx: float = 0.0,
         vy: float = 0.0,
         omega: float = 0.0,
+        dim: int = 2,
     ) -> None:
         # Rigid body properties
         self.mass: float = 20 # kg
-        self.side_length: float = 1.0 # meters
+        self.side_length: float = 1.5 # meters
         self.Izz: float = (1.0 / 12.0) * self.mass * self.side_length ** 2
 
         # State variables
@@ -65,14 +65,25 @@ class Cosmobee:
         self.vx: float = float(vx)
         self.vy: float = float(vy)
         self.omega: float = float(omega)
+        self.dim: int = dim
+
+        # Set max vehicle performance limits for safety
+        self.max_velocity: float = 1.5 # m/s
+        self.max_angular_velocity: float = np.pi / 3.0 # rad/s
 
         # Controllers
-        self.x_pid = PID(Kp=1.0, Ki=0.0, Kd=0.0)
-        self.y_pid = PID(Kp=1.0, Ki=0.0, Kd=0.0)
+        self.x_pid = PID(Kp=30.0, Ki=0.0, Kd=0.0)
+        self.y_pid = PID(Kp=30.0, Ki=0.0, Kd=0.0)
         self.theta_pid = PID(Kp=1.0, Ki=0.0, Kd=0.0)
 
-        # Trajectory
+        self.x_control: float = 0.0
+        self.y_control: float = 0.0
+        self.theta_control: float = 0.0
+
+        # Trajectory and pure pursuit algorithm
         self.trajectory = None
+        self.lookahead_distance: float = 3.0 # meters
+        self.current_target_index: int = 0
 
         # Individual thruster properties
         self.max_thrust: float = 10.0 # N
@@ -86,17 +97,20 @@ class Cosmobee:
 
         # Reaction wheel properties
         self.max_torque: float = 1.0   # N*m
-        self.reaction_wheel = ReactionWheel(min_torque=self.min_torque, max_torque=self.max_torque, inertia=0.01, axis=np.array((0, 0, 1)))
+        self.reaction_wheel = ReactionWheel(max_torque=self.max_torque, inertia=0.01, axis=np.array((0, 0, 1)))
 
     def __repr__(self) -> str:  # pragma: no cover - small convenience method
         return (
             f"Cosmobee(x={self.x}, y={self.y}, theta={self.theta}, vx={self.vx}, "
             f"vy={self.vy}, omega={self.omega})"
         )
-    
-    def set_trajectory(self, trajectory: Trajectory) -> None:
+
+    def set_trajectory(self, trajectory: np.array) -> None:
         """Set the trajectory for the Cosmobee to follow."""
+        if trajectory.shape[1] != 4:
+            raise ValueError("Trajectory must be of shape (N, 4) for 2D Cosmobee.")
         self.trajectory = trajectory
+        self.current_target_index = 0
     
     def get_local_to_global_rotation_matrix(self) -> np.array:
         """Get the rotation matrix from local to global frame based on current theta."""
@@ -107,19 +121,92 @@ class Cosmobee:
     
     def set_thrust(self, global_thrust_vector: np.array) -> None:
         """Set thruster forces based on desired global thrust vector."""
-        if len(global_thrust_vector) != 2:
-            raise ValueError("Thrust vector must be a 2D vector.")
+        if global_thrust_vector.shape != (3,):
+            raise ValueError("Thrust vector must be a 3D vector.")
+
+        if self.dim == 2:
+            global_thrust_vector = global_thrust_vector[:2]
 
         # Turn global thrust into local frame
         R = self.get_local_to_global_rotation_matrix()
         local_thrust = np.linalg.inv(R).dot(global_thrust_vector)
         
         # Set the targets for each thruster so that the PID can handle it
-        self.thruster_right.set_thrust(max(0.0, local_thrust[0]))
-        self.thruster_left.set_thrust(max(0.0, -local_thrust[0]))
-        self.thruster_up.set_thrust(max(0.0, local_thrust[1]))
-        self.thruster_down.set_thrust(max(0.0, -local_thrust[1]))
+        self.thruster_right.set_thrust(max(0.0, -local_thrust[0]))
+        self.thruster_left.set_thrust(max(0.0, local_thrust[0]))
+        self.thruster_up.set_thrust(max(0.0, -local_thrust[1]))
+        self.thruster_down.set_thrust(max(0.0, local_thrust[1]))
 
     def set_torque(self, torque: float) -> None:
         """Set reaction wheel torque."""
         self.reaction_wheel.set_torque(torque)
+
+    def update_new_target_position(self) -> np.array:
+        """Get the next target position from the trajectory based on lookahead distance and the current position."""
+        if self.trajectory is None:
+            raise ValueError("No trajectory set for Cosmobee.")
+        # Find the next point that is at least lookahead_distance away using Euclidean distance
+        norms = np.linalg.norm(self.trajectory[:, :3] - np.array([self.x, self.y, 0]), axis=1)
+        # Filter to only points ahead of the current target index
+        ahead_indices = np.where(norms >= self.lookahead_distance)[0]
+        ahead_indices = ahead_indices[ahead_indices >= self.current_target_index]
+        if len(ahead_indices) > 0:
+            self.current_target_index = ahead_indices[0]
+            return self.trajectory[self.current_target_index]
+        # If no such point exists, return the last point since we've reached the end
+        self.current_target_index = len(self.trajectory) - 1
+        return self.trajectory[-1]
+
+    def update(self, dt: float) -> None:
+        # Get the next target position
+        target_position = self.update_new_target_position()
+
+        # Calculate the target velocities based on the current position and target position
+        # Average velocity to reach the target in dt seconds
+        vel_gain = 1.3
+        target_vx = max(min(vel_gain*(target_position[0] - self.x) / self.lookahead_distance, self.max_velocity), -self.max_velocity)
+        target_vy = max(min(vel_gain*(target_position[1] - self.y) / self.lookahead_distance, self.max_velocity), -self.max_velocity)
+        target_omega = 0.0  # For simplicity, we want to keep facing "forward" # TODO: improve this
+
+        # Update PID controllers
+        self.x_pid.set_setpoint(target_vx)
+        self.y_pid.set_setpoint(target_vy)
+        self.theta_pid.set_setpoint(target_omega)  # For simplicity, always face "forward" # TODO: improve this
+        self.x_control = self.x_pid.update(self.vx, dt) # thrust in x
+        self.y_control = self.y_pid.update(self.vy, dt) # thrust in y
+        self.theta_control = self.theta_pid.update(self.omega, dt) # torque in z
+
+        # See whether to override controls based on max velocity limits
+        # If velocity and x_control have the same sign, we are speeding up
+        if (self.vx * self.x_control > 0) and (abs(self.vx) >= self.max_velocity):
+            self.x_control = 0.0
+        if (self.vy * self.y_control > 0) and (abs(self.vy) >= self.max_velocity):
+            self.y_control = 0.0
+        if (self.omega * self.theta_control > 0) and (abs(self.omega) >= self.max_angular_velocity):
+            self.theta_control = 0.0
+
+        # Set thruster forces and reaction wheel torque
+        self.set_thrust(np.array([self.x_control, self.y_control, 0.0]))
+        self.set_torque(self.theta_control)
+
+        # Update state based on dynamics
+        # Thrust is reversed because thrusters push against the spacecraft
+        total_thrust_x = -(self.thruster_right.thrust * np.cos(self.thruster_right.angle) +
+                          self.thruster_left.thrust * np.cos(self.thruster_left.angle))
+        total_thrust_y = -(self.thruster_up.thrust * np.sin(self.thruster_up.angle) +
+                          self.thruster_down.thrust * np.sin(self.thruster_down.angle))
+
+        self.vx += total_thrust_x / self.mass * dt
+        self.vy += total_thrust_y / self.mass * dt
+        self.omega += self.theta_control / self.Izz * dt
+
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        self.theta += self.omega * dt
+
+    def reached_goal(self) -> bool:
+        """Return True if the Cosmobee has reached the end of its trajectory."""
+        if self.trajectory is None:
+            return False
+        return self.current_target_index >= len(self.trajectory) - 1 and np.linalg.norm(
+            np.array([self.x, self.y]) - self.trajectory[-1, :2]) < 0.01
