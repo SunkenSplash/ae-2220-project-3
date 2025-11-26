@@ -10,13 +10,6 @@ import enum
 
 from PID import PID
 
-# Write an enum for thruster indices for better readability
-class Thruster(enum.IntEnum):
-    THRUSTER_1 = 1
-    THRUSTER_2 = 2
-    THRUSTER_3 = 3
-    THRUSTER_4 = 4
-
 class Thruster:
     def __init__(self, max_thrust: float, position: np.array, angle: float):
         self.max_thrust = max_thrust

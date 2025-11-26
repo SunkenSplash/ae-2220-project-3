@@ -50,9 +50,8 @@ if __name__ == "__main__":
     # Make theta_traj to be the angle of the tangent to the trajectory
     dx = np.gradient(x_traj)
     dy = np.gradient(y_traj)
-    theta_traj = np.arctan2(dy, dx) + 2 * np.pi # add 2pi to avoid negative angles
-    # Turn the theta_traj to be between 0 and 2pi
-    theta_traj = theta_traj % (2 * np.pi)
+    # Compute tangent angle for the path and wrap to [0, 2*pi)
+    theta_traj = np.arctan2(dy, dx) % (2 * np.pi)
     trajectory = np.vstack((x_traj, y_traj, z_traj, theta_traj)).T
 
     # Set the trajectory
@@ -93,7 +92,7 @@ if __name__ == "__main__":
     ax[0].legend()
 
     # Plot a box showing the Cosmobee
-    bee_box, = ax[1].plot([], [], 'k-', markersize=8)
+    bee_box, = ax[1].plot([], [], 'k-')
     bee_vector = ax[1].plot([], [], 'r-', lw=2)[0]
     # Local (close-up) desired trajectory relative to the Cosmobee body frame
     local_traj_line, = ax[1].plot([], [], 'r--', label="Desired Trajectory", alpha=0.2)
@@ -119,13 +118,12 @@ if __name__ == "__main__":
     text.set_x(center0)
     text2.set_x(center1)
 
-    # Set fixed view limits and enforce equal aspect before adding patches that wedge sizes are correct
+    # Set fixed view limits and enforce equal aspect ratio
     closeup_size = 2.0
     ax[1].set_xlim(-closeup_size, closeup_size)
     ax[1].set_ylim(-closeup_size, closeup_size)
     ax[1].set_aspect('equal', adjustable='box')
-    ax[1].set_autoscale_on(False)   # disable autoscaling on the axes
-    ax[1].legend()
+    ax[1].set_autoscale_on(False)   # Wedges autoscale to huge sizes otherwise
 
     # Reaction wheel visual: a circle composed of four 90deg wedges (two purple, two black)
     # Diameter is half of the Cosmobee side length
@@ -144,13 +142,9 @@ if __name__ == "__main__":
     ax[1].set_xlabel('Local X (m)')
     ax[1].set_ylabel('Local Y (m)')
     ax[1].grid()
-    ax[1].set_xlim(-2, 2)
-    ax[1].set_ylim(-2, 2)
-    ax[1].set_aspect('equal', adjustable='box')
-    ax[1].set_autoscale_on(False)   # wedges autoscale to huge sizes otherwise
     ax[1].legend()
 
-    # Now that wheel_wedges and thruster_arrows are created, mark the rest as animated
+    # Mark remaining animated artists
     for a in [line, point, target_point, local_traj_line, local_actual_line, local_target_point, bee_box, bee_vector, text, text2, target_vector, *thruster_arrows, *wheel_wedges]:
         a.set_animated(True)
 
@@ -160,18 +154,14 @@ if __name__ == "__main__":
         point.set_data([], [])
         target_point.set_data([], [])
         local_traj_line.set_data([], [])
+        local_actual_line.set_data([], [])
         local_target_point.set_data([], [])
         bee_box.set_data([], [])
         bee_vector.set_data([], [])
-        # set arrows to zero-length
+        # Initialize arrows at zero length
         for arr in thruster_arrows:
             arr.set_positions((0, 0), (0, 0))
-        # align text positions again (in case of figure changes)
-        pos0 = ax[0].get_position()
-        pos1 = ax[1].get_position()
-        text.set_x(pos0.x0 + pos0.width / 2.0)
-        text2.set_x(pos1.x0 + pos1.width / 2.0)
-        return line, point, target_point, local_traj_line, local_target_point, bee_box, bee_vector, target_vector, *thruster_arrows, *wheel_wedges, text, text2
+        return line, point, target_point, local_traj_line, local_actual_line, local_target_point, bee_box, bee_vector, target_vector, *thruster_arrows, *wheel_wedges, text, text2
     def update(frame):
         frame *= frame_skip
         line.set_data(x_history[:frame], y_history[:frame])
@@ -234,7 +224,7 @@ if __name__ == "__main__":
             # Thruster magnitude is normalized to max thrust and scaled by side length for the visualization
             length = (thr_val / thr_obj.max_thrust) * bee.side_length
             u, v = dir_world * length
-            # Set respective thruster base and vector components for quiver plot
+            # Set respective thruster base and vector components
             bases.append(base_world)
             U.append(u)
             V.append(v)
