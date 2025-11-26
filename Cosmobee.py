@@ -34,10 +34,24 @@ class ReactionWheel:
         self.inertia = inertia
         self.axis = axis
         self.angular_velocity = 0.0
+        # Integrated wheel angle (radians). This is the wheel's rotation
+        # angle in the wheel frame and is updated in `update()` so callers
+        # can read a continuously integrated angle without re-integrating
+        # histories themselves.
+        self.angle = 0.0
         self.torque = 0.0
 
     def set_torque(self, torque: float):
         self.torque = np.clip(torque, self.min_torque, self.max_torque)
+
+    def update(self, dt: float):
+        # angular acceleration = torque / inertia
+        # negative because of equal-and-opposite reaction
+        self.angular_velocity -= (self.torque / self.inertia) * dt
+        # Integrate the wheel angle using the (new) angular velocity so the
+        # ReactionWheel maintains its own angle state.
+        self.angle += self.angular_velocity * dt
+        self.angle = self.angle
 
 class Cosmobee:
     """Simple 2D rigid-body model with 4 thrusters and one reaction wheel.
@@ -55,7 +69,7 @@ class Cosmobee:
     ) -> None:
         # Rigid body properties
         self.mass: float = 20 # kg
-        self.side_length: float = 1.5 # meters
+        self.side_length: float = 1 # meters
         self.Izz: float = (1.0 / 12.0) * self.mass * self.side_length ** 2
 
         # State variables
@@ -68,7 +82,7 @@ class Cosmobee:
         self.dim: int = dim
 
         # Set max vehicle performance limits for safety
-        self.max_velocity: float = 1.5 # m/s
+        self.max_velocity: float = 1 # m/s
         self.max_angular_velocity: float = np.pi / 3.0 # rad/s
 
         # Controllers
@@ -87,11 +101,11 @@ class Cosmobee:
 
         # Trajectory and pure pursuit algorithm
         self.trajectory = None
-        self.lookahead_distance: float = 3.0 # meters
+        self.lookahead_distance: float = 1.0 # meters
         self.current_target_index: int = 0
 
         # Individual thruster properties
-        self.max_thrust: float = 10.0 # N
+        self.max_thrust: float = 20.0 # N
 
         # Thruster positions (relative to COM) and fixed angles (radians)
         # Each thruster can produce thrust up to max_thrust in its fixed direction
@@ -101,8 +115,9 @@ class Cosmobee:
         self.thruster_down = Thruster(self.max_thrust, np.array((0.0, -0.5, 0.0)), -np.pi / 2.0)
 
         # Reaction wheel properties
-        self.max_torque: float = 1.0   # N*m
-        self.reaction_wheel = ReactionWheel(max_torque=self.max_torque, inertia=0.01, axis=np.array((0, 0, 1)))
+        self.max_torque: float = 50.0   # N*m
+        inertia_rw = 5 * 0.2 ** 2  # kg*m^2, assuming hoop of 5kg mass and 0.2m radius
+        self.reaction_wheel = ReactionWheel(max_torque=self.max_torque, inertia=inertia_rw, axis=np.array((0, 0, 1)))
 
     def __repr__(self) -> str:  # pragma: no cover - small convenience method
         return (
@@ -215,13 +230,17 @@ class Cosmobee:
 
         self.vx += total_thrust_x / self.mass * dt
         self.vy += total_thrust_y / self.mass * dt
-        self.omega += self.theta_control / self.Izz * dt
+
+        # Update reaction wheel (integrate wheel state) and apply reaction 
+        # torque to the spacecraft body.
+        self.reaction_wheel.update(dt)
+        self.omega += self.reaction_wheel.torque / self.Izz * dt
 
         # These are always in global frame
         self.theta += self.omega * dt
         # Normalize theta to be within 0 to 2pi
         self.theta = self.theta % (2 * np.pi)
-        
+
         # Update the global position
         R = self.get_local_to_global_rotation_matrix()
         global_velocity = R.dot(np.array([self.vx, self.vy]))
