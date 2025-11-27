@@ -41,29 +41,29 @@ if __name__ == "__main__":
 
     # Make a trajectory
     # Path 1: A rectangular path
-    start_point = (0, 0)
-    corner_bl = (1.5, 0)
-    corner_tl = (1.5, 3)
-    corner_tr = (8.5, 3)
-    corner_br = (8.5, 0)
-    end_point = (10, 0)
-    num_points_segment = 100
-    x1 = np.linspace(start_point[0], corner_bl[0], num_points_segment)
-    y1 = np.full_like(x1, start_point[1])
-    x2 = np.full(num_points_segment, corner_bl[0])
-    y2 = np.linspace(corner_bl[1], corner_tl[1], num_points_segment)
-    x3 = np.linspace(corner_tl[0], corner_tr[0], num_points_segment)
-    y3 = np.full_like(x3, corner_tl[1])
-    x4 = np.full(num_points_segment, corner_tr[0])
-    y4 = np.linspace(corner_tr[1], corner_br[1], num_points_segment)
-    x5 = np.linspace(corner_br[0], end_point[0], num_points_segment)
-    y5 = np.full_like(x5, corner_br[1])
-    x_traj = np.concatenate((x1, x2, x3, x4, x5))
-    y_traj = np.concatenate((y1, y2, y3, y4, y5))
+    # start_point = (0, 0)
+    # corner_bl = (1.5, 0)
+    # corner_tl = (1.5, 3)
+    # corner_tr = (8.5, 3)
+    # corner_br = (8.5, 0)
+    # end_point = (10, 0)
+    # num_points_segment = 100
+    # x1 = np.linspace(start_point[0], corner_bl[0], num_points_segment)
+    # y1 = np.full_like(x1, start_point[1])
+    # x2 = np.full(num_points_segment, corner_bl[0])
+    # y2 = np.linspace(corner_bl[1], corner_tl[1], num_points_segment)
+    # x3 = np.linspace(corner_tl[0], corner_tr[0], num_points_segment)
+    # y3 = np.full_like(x3, corner_tl[1])
+    # x4 = np.full(num_points_segment, corner_tr[0])
+    # y4 = np.linspace(corner_tr[1], corner_br[1], num_points_segment)
+    # x5 = np.linspace(corner_br[0], end_point[0], num_points_segment)
+    # y5 = np.full_like(x5, corner_br[1])
+    # x_traj = np.concatenate((x1, x2, x3, x4, x5))
+    # y_traj = np.concatenate((y1, y2, y3, y4, y5))
 
     # Path 2: A wavy line
-    # x_traj = np.linspace(0, 10, 1000)
-    # y_traj = 1 * x_traj * np.sin(x_traj)
+    x_traj = np.linspace(0, 10, 1000)
+    y_traj = 1 * x_traj * np.sin(x_traj)
     z_traj = np.zeros_like(x_traj)
     # Make theta_traj to be the angle of the tangent to the trajectory
     dx = np.gradient(x_traj)
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     ax[0].set_ylabel('Y Position (m)')
     ax[0].grid()
     ax[0].axis('equal') 
-    ax[0].legend()
+    ax[0].legend(loc='upper left')
 
     # Plot a box showing the Cosmobee
     bee_box, = ax[1].plot([], [], 'k-')
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     ax[1].set_xlabel('Local X (m)')
     ax[1].set_ylabel('Local Y (m)')
     ax[1].grid()
-    ax[1].legend()
+    ax[1].legend(loc='upper left')
 
     # Mark remaining animated artists
     for a in [line, target_point, point, local_traj_line, local_actual_line, local_target_point, bee_box, text, text2, target_vector, bee_vector, *thruster_arrows, *wheel_wedges]:
