@@ -17,3 +17,6 @@ Arguments:
 - `--file name`: Sets the output filename to `name` for the saved animation (default is "simulation.mp4").
 - `--only-animation`: Only shows the animation and not the additional logging plots.
 - With no arguments, all plots will be shown and no video will be exported. 
+
+Notes:
+- The project uses `imageio-ffmpeg` to bundle an ffmpeg executable so users don't need a system `ffmpeg` install; just `pip install -r requirements.txt` and the bundled ffmpeg is used automatically for exporting animations.

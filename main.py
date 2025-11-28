@@ -1,9 +1,18 @@
 from Cosmobee import Cosmobee
 
-import os
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+try:
+    # Use imageio-ffmpeg if available so users don't need a system ffmpeg
+    # matplotlib's animation writer will use rcParams['animation.ffmpeg_path'] if set
+    import imageio_ffmpeg as _imageio_ffmpeg
+    ffmpeg_exe = _imageio_ffmpeg.get_ffmpeg_exe()
+    import matplotlib
+    matplotlib.rcParams['animation.ffmpeg_path'] = ffmpeg_exe
+    _USING_IMAGEIO_FFMPEG = True
+except Exception:
+    _USING_IMAGEIO_FFMPEG = False
 from matplotlib.patches import Wedge, FancyArrowPatch
 import time
 import argparse
@@ -11,9 +20,8 @@ import argparse
 if __name__ == "__main__":
     # Read arguments (if any) from command line
     parser = argparse.ArgumentParser(description="Simulate Cosmobee trajectory")
-    parser.add_argument('--save', action='store_true', help="Save the animation to MP4")
+    parser.add_argument('--save', type=str, help="Save the animation to MP4 with a given filename")
     parser.add_argument('--fps', type=int, default=30, help="Frames per second for the animation")
-    parser.add_argument('--file', type=str, default="simulation.mp4", help="Output filename for the saved animation")
     parser.add_argument('--only-animation', action='store_true', help="Only shows the animation, no additional plots")
     args = parser.parse_args()
 
@@ -305,11 +313,19 @@ if __name__ == "__main__":
 
     # Save the animation to MP4 if --save argument is provided
     if args.save:
-        if args.file:
-            output_filename = args.file
+        output_filename = args.save
         print(f"Saving animation to {output_filename}...")
         start_time = time.time()
-        ani.save(output_filename, writer='ffmpeg', fps=args.fps)
+        # Prefer a concrete writer instance that will use the bundled ffmpeg if available
+        try:
+            if _USING_IMAGEIO_FFMPEG:
+                writer = animation.FFMpegWriter(fps=args.fps)
+            else:
+                # Fall back to the default ffmpeg writer which requires system ffmpeg
+                writer = 'ffmpeg'
+        except Exception:
+            writer = 'ffmpeg'
+        ani.save(output_filename, writer=writer)
         end_time = time.time()
         print(f"Animation saved to {output_filename} in {end_time - start_time:.2f} seconds.")
     plt.show()
