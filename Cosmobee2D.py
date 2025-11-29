@@ -1,50 +1,14 @@
-"""Cosmobee spacecraft model (Python port of the MATLAB class).
-
-This module provides a minimal, idiomatic Python implementation of the
-Cosmobee class that was originally written in MATLAB. It includes state
-variables, thruster configuration, and a method to set thruster commands.
+"""
+Cosmobee 2D dynamics model.
+This module defines a simple 2D rigid-body model of the Cosmobee spacecraft
+with four thrusters and one reaction wheel for attitude control.
 """
 
 import numpy as np
-import enum
 
 from PID import PID
-
-class Thruster:
-    def __init__(self, max_thrust: float, position: np.array, angle: float):
-        self.max_thrust = max_thrust
-        self.thrust = 0.0
-        self.position = position
-        self.angle = angle
-
-    def set_thrust(self, thrust: float):
-        self.thrust = np.clip(thrust, 0.0, self.max_thrust)
-
-class ReactionWheel:
-    def __init__(self, max_torque: float, inertia: float, axis: np.array):
-        self.min_torque = -max_torque
-        self.max_torque = max_torque
-        self.inertia = inertia
-        self.axis = axis
-        self.angular_velocity = 0.0
-        # Integrated wheel angle (radians). This is the wheel's rotation
-        # angle in the wheel frame and is updated in `update()` so callers
-        # can read a continuously integrated angle without re-integrating
-        # histories themselves.
-        self.angle = 0.0
-        self.torque = 0.0
-
-    def set_torque(self, torque: float):
-        self.torque = np.clip(torque, self.min_torque, self.max_torque)
-
-    def update(self, dt: float):
-        # angular acceleration = torque / inertia
-        # negative because of equal-and-opposite reaction
-        self.angular_velocity -= (self.torque / self.inertia) * dt
-        # Integrate the wheel angle using the (new) angular velocity so the
-        # ReactionWheel maintains its own angle state.
-        self.angle += self.angular_velocity * dt
-        self.angle = self.angle
+from Thruster import Thruster
+from ReactionWheel import ReactionWheel
 
 class Cosmobee:
     """Simple 2D rigid-body model with 4 thrusters and one reaction wheel.
@@ -58,12 +22,11 @@ class Cosmobee:
         vx: float = 0.0,
         vy: float = 0.0,
         omega: float = 0.0,
-        dim: int = 2,
     ) -> None:
         # Rigid body properties
         self.mass: float = 20 # kg
         self.side_length: float = 1 # meters
-        self.Izz: float = (1.0 / 12.0) * self.mass * self.side_length ** 2
+        self.Izz: float = (1.0 / 6.0) * self.mass * self.side_length ** 2
 
         # State variables
         self.x: float = float(x)
@@ -72,7 +35,6 @@ class Cosmobee:
         self.vx: float = float(vx)
         self.vy: float = float(vy)
         self.omega: float = float(omega)
-        self.dim: int = dim
 
         # Set max vehicle performance limits for safety
         self.max_velocity: float = 1 # m/s
@@ -108,7 +70,7 @@ class Cosmobee:
         self.thruster_down = Thruster(self.max_thrust, np.array((0.0, -0.5, 0.0)), -np.pi / 2.0)
 
         # Reaction wheel properties
-        self.max_torque: float = 50.0   # N*m
+        self.max_torque: float = 20.0   # N*m
         inertia_rw = 5 * 0.2 ** 2  # kg*m^2, assuming hoop of 5kg mass and 0.2m radius
         self.reaction_wheel = ReactionWheel(max_torque=self.max_torque, inertia=inertia_rw, axis=np.array((0, 0, 1)))
 
@@ -137,8 +99,7 @@ class Cosmobee:
         if global_thrust_vector.shape != (3,):
             raise ValueError("Thrust vector must be a 3D vector.")
 
-        if self.dim == 2:
-            global_thrust_vector = global_thrust_vector[:2]
+        global_thrust_vector = global_thrust_vector[:2]
 
         # Turn global thrust into local frame
         R = self.get_local_to_global_rotation_matrix()
@@ -197,9 +158,9 @@ class Cosmobee:
         # Transform the local velocities to global frame for PID update
         R = self.get_local_to_global_rotation_matrix()
         global_velocity = R.dot(np.array([self.vx, self.vy]))
-        self.x_control = self.x_pid.update(global_velocity[0], dt) # thrust in x
-        self.y_control = self.y_pid.update(global_velocity[1], dt) # thrust in y
-        self.theta_control = self.theta_pid.update(self.omega, dt) # torque in z
+        self.x_control = self.x_pid.update(dt, global_velocity[0]) # thrust in x
+        self.y_control = self.y_pid.update(dt, global_velocity[1]) # thrust in y
+        self.theta_control = self.theta_pid.update(dt, self.omega) # torque in z
 
         # See whether to override controls based on max velocity limits
         # If velocity and x_control have the same sign, we are speeding up

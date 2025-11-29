@@ -7,10 +7,19 @@ class PID:
         self.integral = 0
         self.previous_error = 0
 
-    def update(self, measurement, dt):
+    def update(self, dt, measurement, rate=None):
+        """Update the PID controller and return the control output.
+        dt: time step in seconds
+        measurement: observed process variable
+        rate: optional rate of change of measurement
+        """
         error = self.setpoint - measurement
         self.integral += error * dt
-        derivative = (error - self.previous_error) / dt if dt > 0 else 0
+        derivative = 0.0
+        if rate is not None:
+            derivative = rate
+        else:
+            derivative = (error - self.previous_error) / dt if dt > 0 else 0
 
         output = (self.Kp * error) + (self.Ki * self.integral) + (self.Kd * derivative)
 
@@ -42,7 +51,7 @@ if __name__ == "__main__":
     measurements = [measurement]
     clamp = 100.0
     for i in range(100):
-        output = pid.update(measurement, dt)
+        output = pid.update(dt, measurement)
         measurement += min(output, clamp) * dt + 5.0 * (np.random.random() - 0.5) - 2 # some noise and drift
         outputs.append(output)
         measurements.append(measurement)

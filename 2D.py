@@ -1,4 +1,4 @@
-from Cosmobee import Cosmobee
+from Cosmobee2D import Cosmobee
 
 import numpy as np
 import matplotlib.pyplot as plt
