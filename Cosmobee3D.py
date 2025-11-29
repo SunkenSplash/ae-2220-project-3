@@ -87,9 +87,9 @@ class Cosmobee:
         """Check if the Cosmobee has reached the target orientation within tolerances."""
         orientation_error = self.target_orientation * self.orientation.conjugate()
 
-        # # Unwinding check to ensure shortest rotation
-        # if orientation_error.w < 0:
-        #     orientation_error = -orientation_error
+        # Unwinding check to ensure shortest rotation
+        if orientation_error.w < 0:
+            orientation_error = -orientation_error
 
         # Use vector part of pure quaternion as attitude error
         attitude_error = np.array([
