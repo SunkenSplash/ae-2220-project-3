@@ -5,6 +5,7 @@ imageio-ffmpeg==0.6.0
 kiwisolver==1.4.9
 matplotlib==3.10.7
 numpy==2.3.5
+numpy-quaternion==2024.0.13
 packaging==25.0
 pandas==2.3.3
 pillow==12.0.0
