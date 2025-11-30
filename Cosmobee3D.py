@@ -40,6 +40,7 @@ class Cosmobee:
         ])
 
         self.angular_velocity = T @ np.array([[roll_rate], [pitch_rate], [yaw_rate]])
+        self.angular_acceleration = np.zeros((3,1))
 
         # Controllers
         self.z_pid = PID(Kp=100.0, Ki=0.0, Kd=-20.0)
@@ -70,6 +71,19 @@ class Cosmobee:
             f"y_rw_ang_vel={self.y_reaction_wheel.angular_velocity}, "
             f"z_rw_ang_vel={self.z_reaction_wheel.angular_velocity})"
         )
+    
+    def get_angular_momentum(self) -> np.array:
+        """Compute total angular momentum of the Cosmobee system."""
+        # Angular momentums of reaction wheels
+        h_w = np.array([
+            self.x_reaction_wheel.inertia * self.x_reaction_wheel.angular_velocity,
+            self.y_reaction_wheel.inertia * self.y_reaction_wheel.angular_velocity,
+            self.z_reaction_wheel.inertia * self.z_reaction_wheel.angular_velocity
+        ]).reshape((3,1))
+
+        # Total angular momentum
+        H = self.I @ self.angular_velocity + h_w
+        return H
     
     def set_target_orientation(self, yaw: float, pitch: float, roll: float) -> None:
         """Set target orientation in Euler angles (radians)."""
@@ -140,21 +154,15 @@ class Cosmobee:
 
         # Dynamics update
 
-        # Angular momentums of reaction wheels
-        h_w = np.array([
-            self.x_reaction_wheel.inertia * self.x_reaction_wheel.angular_velocity,
-            self.y_reaction_wheel.inertia * self.y_reaction_wheel.angular_velocity,
-            self.z_reaction_wheel.inertia * self.z_reaction_wheel.angular_velocity
-        ]).reshape((3,1))
-
-        # Total angular momentum
-        H = self.I @ self.angular_velocity + h_w
+        H = self.get_angular_momentum()
 
         # Gyroscopic torque (precession effect) due to changing wheel angular momentums
         gyroscopic_torque = np.cross(self.angular_velocity.reshape((3,)), H.reshape((3,)))
 
         # Compute angular acceleration
         angular_acceleration = np.linalg.inv(self.I) @ ( control_torque - gyroscopic_torque ).reshape((3,1))
+
+        self.angular_acceleration = angular_acceleration
 
         # Update angular velocity
         self.angular_velocity += angular_acceleration * dt

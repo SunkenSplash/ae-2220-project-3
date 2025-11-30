@@ -39,23 +39,42 @@ if __name__ == "__main__":
     roll_rate, pitch_rate, yaw_rate = starting_angular_velocity[0], starting_angular_velocity[1], starting_angular_velocity[2]
 
     # Create a Cosmobee instance
-    bee = Cosmobee(yaw, pitch, roll, yaw_rate, pitch_rate, roll_rate)  # Starting at random orientation, random angular velocity
+    bee = Cosmobee(yaw, pitch, roll, 0.0, 0.0, 0.0)  # Starting at random orientation, random angular velocity
     bee.set_target_orientation(target_yaw, target_pitch, target_roll)  # Target is the random target orientation
     
     # Simulation
     t = 0.0
     dt = 1.0 / args.fps
     orientation_history = []
-    x_rw_history = []
-    y_rw_history = []
-    z_rw_history = []
+    x_rw_omega_history = []
+    y_rw_omega_history = []
+    z_rw_omega_history = []
+    x_rw_alpha_history = []
+    y_rw_alpha_history = []
+    z_rw_alpha_history = []
+    roll_history = []
+    pitch_history = []
+    yaw_history = []
+    omega_history = []
+    alpha_history = []
+    angular_momentum_history = []
     t_history = []
 
     while not bee.reached_orientation() and t < 10.0:
         orientation_history.append(bee.orientation)
-        x_rw_history.append(bee.x_reaction_wheel.angular_velocity)
-        y_rw_history.append(bee.y_reaction_wheel.angular_velocity)
-        z_rw_history.append(bee.z_reaction_wheel.angular_velocity)
+        x_rw_omega_history.append(bee.x_reaction_wheel.angular_velocity)
+        y_rw_omega_history.append(bee.y_reaction_wheel.angular_velocity)
+        z_rw_omega_history.append(bee.z_reaction_wheel.angular_velocity)
+        x_rw_alpha_history.append(bee.x_reaction_wheel.torque / bee.x_reaction_wheel.inertia)
+        y_rw_alpha_history.append(bee.y_reaction_wheel.torque / bee.y_reaction_wheel.inertia)
+        z_rw_alpha_history.append(bee.z_reaction_wheel.torque / bee.z_reaction_wheel.inertia)
+        roll, pitch, yaw = quaternion.as_euler_angles(bee.orientation)
+        roll_history.append(roll)
+        pitch_history.append(pitch)
+        yaw_history.append(yaw)
+        omega_history.append(bee.angular_velocity.copy())
+        alpha_history.append(bee.angular_acceleration.copy())
+        angular_momentum_history.append(bee.get_angular_momentum())
         t_history.append(t)
         bee.update(dt=dt)
         t += dt
@@ -182,60 +201,74 @@ if args.only_animation:
     plt.show()
     exit(0)
 
-# Add plots for reaction wheel speeds
+# Add plots for reaction wheel angular velocities
 fig_rw, ax_rw = plt.subplots()
-ax_rw.plot(t_history, x_rw_history, label='X Reaction Wheel Angular Velocity', alpha=0.6)
-ax_rw.plot(t_history, y_rw_history, label='Y Reaction Wheel Angular Velocity', alpha=0.6)
-ax_rw.plot(t_history, z_rw_history, label='Z Reaction Wheel Angular Velocity', alpha=0.6)
+ax_rw.plot(t_history, x_rw_omega_history, label='X Reaction Wheel Angular Velocity', alpha=0.6)
+ax_rw.plot(t_history, y_rw_omega_history, label='Y Reaction Wheel Angular Velocity', alpha=0.6)
+ax_rw.plot(t_history, z_rw_omega_history, label='Z Reaction Wheel Angular Velocity', alpha=0.6)
 ax_rw.set_xlabel('Time (s)')
 ax_rw.set_ylabel('Reaction Wheel Angular Velocity (rad/s)')
 ax_rw.set_title('Reaction Wheel Angular Velocity (rad/s) vs. Time (s)')
 ax_rw.legend()
 ax_rw.grid()
 
-# plt.figure()
-# plt.subplot(2, 1, 1)
-# plt.plot(t_history, vel_x_history, label='Vx', alpha=0.6)
-# plt.plot(t_history, vel_y_history, label='Vy', alpha=0.6)
-# plt.hlines(bee.max_velocity, 0, t_history[-1], color='k', linestyle='--', label='Max Velocity')
-# plt.hlines(-bee.max_velocity, 0, t_history[-1], color='k', linestyle='--')
-# plt.xlabel('Time (s)')
-# plt.ylabel('Velocity (m/s)')
-# plt.legend(loc=1)
-# plt.title('Velocities Over Time (Cosmobee Body Frame)')
-# plt.grid()
-# plt.subplot(2, 1, 2)
-# plt.plot(t_history, omega_history, label='Omega', alpha=0.6)
-# plt.hlines(bee.max_angular_velocity, 0, t_history[-1], color='k', linestyle='--', label='Max Angular Velocity')
-# plt.hlines(-bee.max_angular_velocity, 0, t_history[-1], color='k', linestyle='--')
-# plt.xlabel('Time (s)')
-# plt.ylabel('Angular Velocity (rad/s)')
-# plt.legend(loc=1)
-# plt.title('Angular Velocity Over Time')
-# plt.grid()
+# Add plots for reaction wheel angular accelerations
+fig_rwa, ax_rwa = plt.subplots()
+ax_rwa.plot(t_history, x_rw_alpha_history, label='X Reaction Wheel Angular Acceleration', alpha=0.6)
+ax_rwa.plot(t_history, y_rw_alpha_history, label='Y Reaction Wheel Angular Acceleration', alpha=0.6)
+ax_rwa.plot(t_history, z_rw_alpha_history, label='Z Reaction Wheel Angular Acceleration', alpha=0.6)
+ax_rwa.set_xlabel('Time (s)')
+ax_rwa.set_ylabel('Reaction Wheel Angular Acceleration (rad/s²)')
+ax_rwa.set_title('Reaction Wheel Angular Acceleration (rad/s²) vs. Time (s)')
+ax_rwa.legend()
+ax_rwa.grid()
 
-# plt.figure()
-# plt.subplot(2, 1, 1)
-# control_history = np.array(control_history)
-# plt.plot(t_history, control_history[:, 0], label='X Control', alpha=0.6)
-# plt.plot(t_history, control_history[:, 1], label='Y Control', alpha=0.6)
-# plt.hlines(bee.max_thrust, 0, t_history[-1], color='k', linestyle='--', label='Max Thrust')
-# plt.hlines(-bee.max_thrust, 0, t_history[-1], color='k', linestyle='--')
-# plt.xlabel('Time (s)')
-# plt.ylabel('Thrust Control (N)')
-# plt.legend(loc=1)
-# plt.title('Control Outputs Over Time (Translational)')
-# plt.grid()
+# Add plots for angular velocity of entire Cosmobee
+fig_omega, ax_omega = plt.subplots()
+omega_history = np.array(omega_history)
+ax_omega.plot(t_history, omega_history[:, 0], label='X Rate (rad/s)', alpha=0.6)
+ax_omega.plot(t_history, omega_history[:, 1], label='Y Rate (rad/s)', alpha=0.6)
+ax_omega.plot(t_history, omega_history[:, 2], label='Z Rate (rad/s)', alpha=0.6)
+ax_omega.set_xlabel('Time (s)')
+ax_omega.set_ylabel('Angular Velocity (rad/s)')
+ax_omega.set_title('Cosmobee Angular Velocity (rad/s) vs. Time (s)')
+ax_omega.legend()
+ax_omega.grid()
 
-# plt.subplot(2, 1, 2)
-# plt.plot(t_history, control_history[:, 2], label='Theta Control', alpha=0.6)
-# plt.hlines(bee.max_torque, 0, t_history[-1], color='k', linestyle='--', label='Max Torque')
-# plt.hlines(-bee.max_torque, 0, t_history[-1], color='k', linestyle='--')
-# plt.xlabel('Time (s)')
-# plt.ylabel('Torque Control (Nm)')
-# plt.legend(loc=1)
-# plt.title('Angular Control Over Time (Rotational)')
-# plt.grid()
+# Add plotsfor angular acceleration of entire Cosmobee
+fig_alpha, ax_alpha = plt.subplots()
+alpha_history = np.array(alpha_history)
+ax_alpha.plot(t_history, alpha_history[:, 0], label='X Acceleration (rad/s²)', alpha=0.6)
+ax_alpha.plot(t_history, alpha_history[:, 1], label='Y Acceleration (rad/s²)', alpha=0.6)
+ax_alpha.plot(t_history, alpha_history[:, 2], label='Z Acceleration (rad/s²)', alpha=0.6)
+ax_alpha.set_xlabel('Time (s)')
+ax_alpha.set_ylabel('Angular Acceleration (rad/s²)')
+ax_alpha.set_title('Cosmobee Angular Acceleration (rad/s²) vs. Time (s)')
+ax_alpha.legend()
+ax_alpha.grid()
+
+# Add plots for angular momentum of entire Cosmobee
+fig_H, ax_H = plt.subplots()
+angular_momentum_history = np.array(angular_momentum_history)
+ax_H.plot(t_history, angular_momentum_history[:, 0], label='H_x (kg·m²/s)', alpha=0.6)
+ax_H.plot(t_history, angular_momentum_history[:, 1], label='H_y (kg·m²/s)', alpha=0.6)
+ax_H.plot(t_history, angular_momentum_history[:, 2], label='H_z (kg·m²/s)', alpha=0.6)
+ax_H.set_xlabel('Time (s)')
+ax_H.set_ylabel('Angular Momentum (kg·m²/s)')
+ax_H.set_title('Cosmobee Angular Momentum (kg·m²/s) vs. Time (s)')
+ax_H.legend()
+ax_H.grid()
+
+# Add plots for Euler angles over time
+fig_euler, ax_euler = plt.subplots()
+ax_euler.plot(t_history, np.degrees(roll_history), 'r-', label='Roll (degrees)', alpha=0.6)
+ax_euler.plot(t_history, np.degrees(pitch_history), 'g-', label='Pitch (degrees)', alpha=0.6)
+ax_euler.plot(t_history, np.degrees(yaw_history), 'b-', label='Yaw (degrees)', alpha=0.6)
+ax_euler.set_xlabel('Time (s)')
+ax_euler.set_ylabel('Euler Angles (degrees)')
+ax_euler.set_title('Cosmobee Euler Angles (degrees) vs. Time (s)')
+ax_euler.legend()
+ax_euler.grid()
 
 # Save the animation to MP4 if --save argument is provided
 if args.save:
