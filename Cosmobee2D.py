@@ -181,6 +181,12 @@ class Cosmobee:
                           self.thruster_left.thrust * np.cos(self.thruster_left.angle))
         total_thrust_y = -(self.thruster_up.thrust * np.sin(self.thruster_up.angle) +
                           self.thruster_down.thrust * np.sin(self.thruster_down.angle))
+        
+        # Convert total thrusts to global frame
+        R = self.get_local_to_global_rotation_matrix()
+        global_thrust = R.dot(np.array([total_thrust_x, total_thrust_y]))
+        total_thrust_x = global_thrust[0]
+        total_thrust_y = global_thrust[1]
 
         self.vx += total_thrust_x / self.mass * dt
         self.vy += total_thrust_y / self.mass * dt
@@ -196,10 +202,8 @@ class Cosmobee:
         self.theta = self.theta % (2 * np.pi)
 
         # Update the global position
-        R = self.get_local_to_global_rotation_matrix()
-        global_velocity = R.dot(np.array([self.vx, self.vy]))
-        self.x += global_velocity[0] * dt
-        self.y += global_velocity[1] * dt
+        self.x += self.vx * dt
+        self.y += self.vy * dt
 
     def reached_goal(self) -> bool:
         """Return True if the Cosmobee has reached the end of its trajectory."""
