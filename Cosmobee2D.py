@@ -155,7 +155,6 @@ class Cosmobee:
         self.y_pid.set_setpoint(target_vy)
         self.theta_pid.set_setpoint(target_omega)
 
-        # Transform the local velocities to global frame for PID update
         self.x_control = self.x_pid.update(dt, self.vx) # thrust in x
         self.y_control = self.y_pid.update(dt, self.vy) # thrust in y
         self.theta_control = self.theta_pid.update(dt, self.omega) # torque in z

@@ -85,7 +85,7 @@ class Cosmobee:
 
     def reached_orientation(self, attitude_tolerance: float = 0.005, rate_tolerance: float = 0.005) -> bool:
         """Check if the Cosmobee has reached the target orientation within tolerances."""
-        orientation_error = self.target_orientation * self.orientation.conjugate()
+        orientation_error = self.orientation.conjugate() * self.target_orientation
 
         # Unwinding check to ensure shortest rotation
         if orientation_error.w < 0:
@@ -104,7 +104,7 @@ class Cosmobee:
     def update(self, dt: float) -> None:
         """Update the Cosmobee state over a time step dt."""
         # Compute orientation error
-        orientation_error = self.target_orientation * self.orientation.conjugate()
+        orientation_error = self.orientation.conjugate() * self.target_orientation
 
         # Unwinding check to ensure shortest rotation
         if orientation_error.w < 0:
