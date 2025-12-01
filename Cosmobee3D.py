@@ -26,7 +26,7 @@ class Cosmobee:
         self.mass: float = 20 # kg
         self.side_length: float = 1 # meters
         I_diag = (1.0 / 6.0) * self.mass * self.side_length ** 2
-        self.I = np.diag([I_diag, I_diag, I_diag])  # Inertia tensor for a uniform cube
+        self.I = np.diag([I_diag, I_diag, I_diag])  # Inertia tensor for a uniform hollow cube
 
         # State variables
         self.orientation = quaternion.from_euler_angles([roll, pitch, yaw])

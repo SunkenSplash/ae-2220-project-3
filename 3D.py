@@ -20,6 +20,51 @@ from matplotlib.lines import Line2D
 import time
 import argparse
 
+def plot_oriented_cube(ax, R, center=np.array([0.0, 0.0, 0.0]), side=1.0, color='k', alpha=0.15, linewidth=1.5, linestyle='-', label=None):
+    """Plot a wireframe cube centered at `center` with rotation `R` applied.
+
+    - `R` is a 3x3 rotation matrix (numpy array)
+    - `side` is the full length of a cube side
+    - The cube edges are drawn using `ax.plot`
+    """
+    # Half side length
+    s = side / 2.0
+    # Define vertices in the body frame (center at origin)
+    vertices = np.array([
+        [-s, -s, -s],  # 0
+        [ s, -s, -s],  # 1
+        [ s,  s, -s],  # 2
+        [-s,  s, -s],  # 3
+        [-s, -s,  s],  # 4
+        [ s, -s,  s],  # 5
+        [ s,  s,  s],  # 6
+        [-s,  s,  s],  # 7
+    ])
+
+    # Apply rotation and translation to get global vertices
+    global_vertices = (R @ vertices.T).T + center
+
+    # Edge pairs (by index into vertices)
+    edges = [
+        (0, 1), (1, 2), (2, 3), (3, 0),  # bottom face
+        (4, 5), (5, 6), (6, 7), (7, 4),  # top face
+        (0, 4), (1, 5), (2, 6), (3, 7),  # vertical edges
+    ]
+
+    # Draw edges
+    draw_label = label is not None
+    for i, j in edges:
+        p1 = global_vertices[i]
+        p2 = global_vertices[j]
+        xs = [p1[0], p2[0]]
+        ys = [p1[1], p2[1]]
+        zs = [p1[2], p2[2]]
+        if draw_label:
+            ax.plot(xs, ys, zs, color=color, alpha=alpha, linewidth=linewidth, linestyle=linestyle, label=label)
+            draw_label = False
+        else:
+            ax.plot(xs, ys, zs, color=color, alpha=alpha, linewidth=linewidth, linestyle=linestyle)
+
 if __name__ == "__main__":
     # Read arguments (if any) from command line
     parser = argparse.ArgumentParser(description="Simulate Cosmobee trajectory")
@@ -39,8 +84,12 @@ if __name__ == "__main__":
     roll_rate, pitch_rate, yaw_rate = starting_angular_velocity[0], starting_angular_velocity[1], starting_angular_velocity[2]
 
     # Create a Cosmobee instance
-    bee = Cosmobee(yaw, pitch, roll, 0.0, 0.0, 0.0)  # Starting at random orientation, random angular velocity
+    bee = Cosmobee(yaw, pitch, roll, yaw_rate, pitch_rate, roll_rate)  # Starting at random orientation, random angular velocity
     bee.set_target_orientation(target_yaw, target_pitch, target_roll)  # Target is the random target orientation
+
+    print("Starting orientation (radians): Roll={:.2f}, Pitch={:.2f}, Yaw={:.2f}".format(roll, pitch, yaw))
+    print("Target orientation (radians): Roll={:.2f}, Pitch={:.2f}, Yaw={:.2f}".format(target_roll, target_pitch, target_yaw))
+    print("Starting angular velocity (rad/s): Roll Rate={:.2f}, Pitch Rate={:.2f}, Yaw Rate={:.2f}".format(roll_rate, pitch_rate, yaw_rate))
     
     # Simulation
     t = 0.0
@@ -134,157 +183,110 @@ if __name__ == "__main__":
 
         return ax,
 
+    ani = animation.FuncAnimation(fig, update, frames=len(t_history),
+                                    blit=False, interval=1000/args.fps, repeat_delay=2000)
 
-def plot_oriented_cube(ax, R, center=np.array([0.0, 0.0, 0.0]), side=1.0, color='k', alpha=0.15, linewidth=1.5, linestyle='-', label=None):
-    """Plot a wireframe cube centered at `center` with rotation `R` applied.
-
-    - `R` is a 3x3 rotation matrix (numpy array)
-    - `side` is the full length of a cube side
-    - The cube edges are drawn using `ax.plot`
-    """
-    # Half side length
-    s = side / 2.0
-    # Define vertices in the body frame (center at origin)
-    vertices = np.array([
-        [-s, -s, -s],  # 0
-        [ s, -s, -s],  # 1
-        [ s,  s, -s],  # 2
-        [-s,  s, -s],  # 3
-        [-s, -s,  s],  # 4
-        [ s, -s,  s],  # 5
-        [ s,  s,  s],  # 6
-        [-s,  s,  s],  # 7
-    ])
-
-    # Apply rotation and translation to get global vertices
-    global_vertices = (R @ vertices.T).T + center
-
-    # Edge pairs (by index into vertices)
-    edges = [
-        (0, 1), (1, 2), (2, 3), (3, 0),  # bottom face
-        (4, 5), (5, 6), (6, 7), (7, 4),  # top face
-        (0, 4), (1, 5), (2, 6), (3, 7),  # vertical edges
+    # Make a static legend on the figure (not the axis) so it isn't cleared during frame updates
+    legend_handles = [
+        Line2D([0], [0], color='r', lw=2, label='Body X'),
+        Line2D([0], [0], color='g', lw=2, label='Body Y'),
+        Line2D([0], [0], color='b', lw=2, label='Body Z'),
+        Line2D([0], [0], color='r', lw=2, linestyle='--', label='Target X'),
+        Line2D([0], [0], color='g', lw=2, linestyle='--', label='Target Y'),
+        Line2D([0], [0], color='b', lw=2, linestyle='--', label='Target Z'),
     ]
+    fig.legend(handles=legend_handles, loc='upper right')
+    fig.tight_layout()
 
-    # Draw edges
-    draw_label = label is not None
-    for i, j in edges:
-        p1 = global_vertices[i]
-        p2 = global_vertices[j]
-        xs = [p1[0], p2[0]]
-        ys = [p1[1], p2[1]]
-        zs = [p1[2], p2[2]]
-        if draw_label:
-            ax.plot(xs, ys, zs, color=color, alpha=alpha, linewidth=linewidth, linestyle=linestyle, label=label)
-            draw_label = False
-        else:
-            ax.plot(xs, ys, zs, color=color, alpha=alpha, linewidth=linewidth, linestyle=linestyle)
+    # If --only-animation argument is provided, show only the animation and exit
+    if args.only_animation:
+        plt.show()
+        exit(0)
 
+    # Add plots for reaction wheel angular velocities
+    fig_rw, ax_rw = plt.subplots()
+    ax_rw.plot(t_history, x_rw_omega_history, 'r-', label='X Reaction Wheel Angular Velocity', alpha=0.6)
+    ax_rw.plot(t_history, y_rw_omega_history, 'g-', label='Y Reaction Wheel Angular Velocity', alpha=0.6)
+    ax_rw.plot(t_history, z_rw_omega_history, 'b-', label='Z Reaction Wheel Angular Velocity', alpha=0.6)
+    ax_rw.set_xlabel('Time (s)')
+    ax_rw.set_ylabel('Reaction Wheel Angular Velocity (rad/s)')
+    ax_rw.set_title('Reaction Wheel Angular Velocity (rad/s) vs. Time (s)')
+    ax_rw.legend()
+    ax_rw.grid()
 
-ani = animation.FuncAnimation(fig, update, frames=len(t_history),
-                                blit=False, interval=1000/args.fps, repeat_delay=2000)
+    # Add plots for reaction wheel angular accelerations
+    fig_rwa, ax_rwa = plt.subplots()
+    ax_rwa.plot(t_history, x_rw_alpha_history, 'r-', label='X Reaction Wheel Angular Acceleration', alpha=0.6)
+    ax_rwa.plot(t_history, y_rw_alpha_history, 'g-', label='Y Reaction Wheel Angular Acceleration', alpha=0.6)
+    ax_rwa.plot(t_history, z_rw_alpha_history, 'b-', label='Z Reaction Wheel Angular Acceleration', alpha=0.6)
+    ax_rwa.set_xlabel('Time (s)')
+    ax_rwa.set_ylabel('Reaction Wheel Angular Acceleration (rad/s²)')
+    ax_rwa.set_title('Reaction Wheel Angular Acceleration (rad/s²) vs. Time (s)')
+    ax_rwa.legend()
+    ax_rwa.grid()
 
-# Make a static legend on the figure (not the axis) so it isn't cleared during frame updates
-legend_handles = [
-    Line2D([0], [0], color='r', lw=2, label='Body X'),
-    Line2D([0], [0], color='g', lw=2, label='Body Y'),
-    Line2D([0], [0], color='b', lw=2, label='Body Z'),
-    Line2D([0], [0], color='r', lw=2, linestyle='--', label='Target X'),
-    Line2D([0], [0], color='g', lw=2, linestyle='--', label='Target Y'),
-    Line2D([0], [0], color='b', lw=2, linestyle='--', label='Target Z'),
-]
-fig.legend(handles=legend_handles, loc='upper right')
-fig.tight_layout()
+    # Add plots for angular velocity of entire Cosmobee
+    fig_omega, ax_omega = plt.subplots()
+    omega_history = np.array(omega_history)
+    ax_omega.plot(t_history, omega_history[:, 0], 'r-', label='X Rate (rad/s)', alpha=0.6)
+    ax_omega.plot(t_history, omega_history[:, 1], 'g-', label='Y Rate (rad/s)', alpha=0.6)
+    ax_omega.plot(t_history, omega_history[:, 2], 'b-', label='Z Rate (rad/s)', alpha=0.6)
+    ax_omega.set_xlabel('Time (s)')
+    ax_omega.set_ylabel('Angular Velocity (rad/s)')
+    ax_omega.set_title('Cosmobee Angular Velocity (rad/s) vs. Time (s)')
+    ax_omega.legend()
+    ax_omega.grid()
 
-# If --only-animation argument is provided, show only the animation and exit
-if args.only_animation:
-    plt.show()
-    exit(0)
+    # Add plotsfor angular acceleration of entire Cosmobee
+    fig_alpha, ax_alpha = plt.subplots()
+    alpha_history = np.array(alpha_history)
+    ax_alpha.plot(t_history, alpha_history[:, 0], 'r-', label='X Acceleration (rad/s²)', alpha=0.6)
+    ax_alpha.plot(t_history, alpha_history[:, 1], 'g-', label='Y Acceleration (rad/s²)', alpha=0.6)
+    ax_alpha.plot(t_history, alpha_history[:, 2], 'b-', label='Z Acceleration (rad/s²)', alpha=0.6)
+    ax_alpha.set_xlabel('Time (s)')
+    ax_alpha.set_ylabel('Angular Acceleration (rad/s²)')
+    ax_alpha.set_title('Cosmobee Angular Acceleration (rad/s²) vs. Time (s)')
+    ax_alpha.legend()
+    ax_alpha.grid()
 
-# Add plots for reaction wheel angular velocities
-fig_rw, ax_rw = plt.subplots()
-ax_rw.plot(t_history, x_rw_omega_history, 'r-', label='X Reaction Wheel Angular Velocity', alpha=0.6)
-ax_rw.plot(t_history, y_rw_omega_history, 'g-', label='Y Reaction Wheel Angular Velocity', alpha=0.6)
-ax_rw.plot(t_history, z_rw_omega_history, 'b-', label='Z Reaction Wheel Angular Velocity', alpha=0.6)
-ax_rw.set_xlabel('Time (s)')
-ax_rw.set_ylabel('Reaction Wheel Angular Velocity (rad/s)')
-ax_rw.set_title('Reaction Wheel Angular Velocity (rad/s) vs. Time (s)')
-ax_rw.legend()
-ax_rw.grid()
+    # Add plots for angular momentum of entire Cosmobee
+    fig_H, ax_H = plt.subplots()
+    angular_momentum_history = np.array(angular_momentum_history)
+    ax_H.plot(t_history, angular_momentum_history[:, 0], 'r-', label='H_x (kg·m²/s)', alpha=0.6)
+    ax_H.plot(t_history, angular_momentum_history[:, 1], 'g-', label='H_y (kg·m²/s)', alpha=0.6)
+    ax_H.plot(t_history, angular_momentum_history[:, 2], 'b-', label='H_z (kg·m²/s)', alpha=0.6)
+    ax_H.set_xlabel('Time (s)')
+    ax_H.set_ylabel('Angular Momentum (kg·m²/s)')
+    ax_H.set_title('Cosmobee Angular Momentum (kg·m²/s) vs. Time (s)')
+    ax_H.legend()
+    ax_H.grid()
 
-# Add plots for reaction wheel angular accelerations
-fig_rwa, ax_rwa = plt.subplots()
-ax_rwa.plot(t_history, x_rw_alpha_history, 'r-', label='X Reaction Wheel Angular Acceleration', alpha=0.6)
-ax_rwa.plot(t_history, y_rw_alpha_history, 'g-', label='Y Reaction Wheel Angular Acceleration', alpha=0.6)
-ax_rwa.plot(t_history, z_rw_alpha_history, 'b-', label='Z Reaction Wheel Angular Acceleration', alpha=0.6)
-ax_rwa.set_xlabel('Time (s)')
-ax_rwa.set_ylabel('Reaction Wheel Angular Acceleration (rad/s²)')
-ax_rwa.set_title('Reaction Wheel Angular Acceleration (rad/s²) vs. Time (s)')
-ax_rwa.legend()
-ax_rwa.grid()
+    # Add plots for Euler angles over time
+    fig_euler, ax_euler = plt.subplots()
+    ax_euler.plot(t_history, np.degrees(roll_history), 'r-', label='Roll (degrees)', alpha=0.6)
+    ax_euler.plot(t_history, np.degrees(pitch_history), 'g-', label='Pitch (degrees)', alpha=0.6)
+    ax_euler.plot(t_history, np.degrees(yaw_history), 'b-', label='Yaw (degrees)', alpha=0.6)
+    ax_euler.set_xlabel('Time (s)')
+    ax_euler.set_ylabel('Euler Angles (degrees)')
+    ax_euler.set_title('Cosmobee Euler Angles (degrees) vs. Time (s)')
+    ax_euler.legend()
+    ax_euler.grid()
 
-# Add plots for angular velocity of entire Cosmobee
-fig_omega, ax_omega = plt.subplots()
-omega_history = np.array(omega_history)
-ax_omega.plot(t_history, omega_history[:, 0], 'r-', label='X Rate (rad/s)', alpha=0.6)
-ax_omega.plot(t_history, omega_history[:, 1], 'g-', label='Y Rate (rad/s)', alpha=0.6)
-ax_omega.plot(t_history, omega_history[:, 2], 'b-', label='Z Rate (rad/s)', alpha=0.6)
-ax_omega.set_xlabel('Time (s)')
-ax_omega.set_ylabel('Angular Velocity (rad/s)')
-ax_omega.set_title('Cosmobee Angular Velocity (rad/s) vs. Time (s)')
-ax_omega.legend()
-ax_omega.grid()
-
-# Add plotsfor angular acceleration of entire Cosmobee
-fig_alpha, ax_alpha = plt.subplots()
-alpha_history = np.array(alpha_history)
-ax_alpha.plot(t_history, alpha_history[:, 0], 'r-', label='X Acceleration (rad/s²)', alpha=0.6)
-ax_alpha.plot(t_history, alpha_history[:, 1], 'g-', label='Y Acceleration (rad/s²)', alpha=0.6)
-ax_alpha.plot(t_history, alpha_history[:, 2], 'b-', label='Z Acceleration (rad/s²)', alpha=0.6)
-ax_alpha.set_xlabel('Time (s)')
-ax_alpha.set_ylabel('Angular Acceleration (rad/s²)')
-ax_alpha.set_title('Cosmobee Angular Acceleration (rad/s²) vs. Time (s)')
-ax_alpha.legend()
-ax_alpha.grid()
-
-# Add plots for angular momentum of entire Cosmobee
-fig_H, ax_H = plt.subplots()
-angular_momentum_history = np.array(angular_momentum_history)
-ax_H.plot(t_history, angular_momentum_history[:, 0], 'r-', label='H_x (kg·m²/s)', alpha=0.6)
-ax_H.plot(t_history, angular_momentum_history[:, 1], 'g-', label='H_y (kg·m²/s)', alpha=0.6)
-ax_H.plot(t_history, angular_momentum_history[:, 2], 'b-', label='H_z (kg·m²/s)', alpha=0.6)
-ax_H.set_xlabel('Time (s)')
-ax_H.set_ylabel('Angular Momentum (kg·m²/s)')
-ax_H.set_title('Cosmobee Angular Momentum (kg·m²/s) vs. Time (s)')
-ax_H.legend()
-ax_H.grid()
-
-# Add plots for Euler angles over time
-fig_euler, ax_euler = plt.subplots()
-ax_euler.plot(t_history, np.degrees(roll_history), 'r-', label='Roll (degrees)', alpha=0.6)
-ax_euler.plot(t_history, np.degrees(pitch_history), 'g-', label='Pitch (degrees)', alpha=0.6)
-ax_euler.plot(t_history, np.degrees(yaw_history), 'b-', label='Yaw (degrees)', alpha=0.6)
-ax_euler.set_xlabel('Time (s)')
-ax_euler.set_ylabel('Euler Angles (degrees)')
-ax_euler.set_title('Cosmobee Euler Angles (degrees) vs. Time (s)')
-ax_euler.legend()
-ax_euler.grid()
-
-# Save the animation to MP4 if --save argument is provided
-if args.save:
-    output_filename = args.save
-    print(f"Saving animation to {output_filename}...")
-    start_time = time.time()
-    # Prefer a concrete writer instance that will use the bundled ffmpeg if available
-    try:
-        if _USING_IMAGEIO_FFMPEG:
-            writer = animation.FFMpegWriter(fps=args.fps)
-        else:
-            # Fall back to the default ffmpeg writer which requires system ffmpeg
+    # Save the animation to MP4 if --save argument is provided
+    if args.save:
+        output_filename = args.save
+        print(f"Saving animation to {output_filename}...")
+        start_time = time.time()
+        # Prefer a concrete writer instance that will use the bundled ffmpeg if available
+        try:
+            if _USING_IMAGEIO_FFMPEG:
+                writer = animation.FFMpegWriter(fps=args.fps)
+            else:
+                # Fall back to the default ffmpeg writer which requires system ffmpeg
+                writer = 'ffmpeg'
+        except Exception:
             writer = 'ffmpeg'
-    except Exception:
-        writer = 'ffmpeg'
-    ani.save(output_filename, writer=writer)
-    end_time = time.time()
-    print(f"Animation saved to {output_filename} in {end_time - start_time:.2f} seconds.")
-plt.show()
+        ani.save(output_filename, writer=writer)
+        end_time = time.time()
+        print(f"Animation saved to {output_filename} in {end_time - start_time:.2f} seconds.")
+    plt.show()
